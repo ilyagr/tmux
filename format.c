@@ -393,7 +393,7 @@ format_job_get(struct format_expand_state *es, const char *cmd)
 	int				 force;
 	struct format_expand_state	 next;
 
-	if (ft->client == NULL)
+	if (ft->client == NULL || (ft->client->flags & CLIENT_DEAD))
 		jobs = &format_jobs;
 	else if (ft->client->jobs != NULL)
 		jobs = ft->client->jobs;
@@ -508,6 +508,7 @@ format_lost_client(struct client *c)
 	if (c->jobs != NULL)
 		format_job_tidy(c->jobs, 1);
 	free(c->jobs);
+	c->jobs = NULL;
 }
 
 /* Wrapper for asprintf. */
