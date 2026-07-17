@@ -539,6 +539,7 @@ server_client_lost(struct client *c)
 
 	free(c->title);
 	free((void *)c->cwd);
+	c->cwd = NULL;
 
 	evtimer_del(&c->repeat_timer);
 	evtimer_del(&c->click_timer);
@@ -2967,7 +2968,7 @@ server_client_get_cwd(struct client *c, struct session *s)
 {
 	const char	*home;
 
-	if (!cfg_finished && cfg_client != NULL)
+	if (!cfg_finished && cfg_client != NULL && cfg_client->cwd != NULL)
 		return (cfg_client->cwd);
 	if (c != NULL && c->session == NULL && c->cwd != NULL)
 		return (c->cwd);
