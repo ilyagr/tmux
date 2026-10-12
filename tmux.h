@@ -3732,6 +3732,7 @@ void		 window_pane_set_event(struct window_pane *);
 void		 window_pane_utmp_add(struct window_pane *);
 void		 window_pane_utmp_remove(struct window_pane *);
 void		 window_pane_wait_finish(struct window_pane *);
+void		 window_pane_wait_cancel(struct window_pane *);
 struct window_pane *window_get_active_at(struct window *, u_int, u_int);
 struct window_pane *window_find_string(struct window *, const char *);
 int		 window_has_floating_panes(struct window *);

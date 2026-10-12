@@ -333,7 +333,18 @@ server_client_fire_resized(struct client *c, u_int old_sx, u_int old_sy)
 void
 server_client_set_session(struct client *c, struct session *s)
 {
-	struct session	*old = c->session;
+	struct session		*old = c->session;
+	struct window_pane	*wp;
+	struct cmdq_item	*item;
+
+	if (old != NULL && old != s && old->curw != NULL) {
+		wp = old->curw->window->modal;
+		if (wp != NULL) {
+			item = wp->wait_item;
+			if (item != NULL && cmdq_get_target_client(item) == c)
+				window_pane_wait_cancel(wp);
+		}
+	}
 
 	if (s != NULL && c->session != NULL && c->session != s)
 		c->last_session = c->session;
@@ -859,6 +870,8 @@ have_event:
 	if (m->statusat != -1 &&
 	    y >= (u_int)m->statusat &&
 	    y < m->statusat + m->statuslines) {
+		if (w->modal != NULL)
+			return (KEYC_UNKNOWN);
 		if (type == KEYC_TYPE_MOUSEDRAG && c->tty.mouse_drag_flag == 0)
 			c->tty.mouse_drag_status = 1;
 		sr = status_get_range(c, x, y - m->statusat);
@@ -1647,13 +1660,16 @@ server_client_handle_key0(struct client *c, struct key_event *event,
     struct cmdq_item *after, struct cmdq_item **next)
 {
 	struct session		*s = c->session;
+	struct mouse_event	*m = &event->m;
 	struct cmdq_item	*item;
 	struct window_pane	*wp;
+	key_code		 key;
 
 	/* Check the client is good to accept input. */
 	if (s == NULL || (c->flags & CLIENT_UNATTACHEDFLAGS))
 		return (0);
 
+	/* Report themes if needed. */
 	if (event->key == KEYC_REPORT_LIGHT_THEME) {
 		server_client_report_theme(c, THEME_LIGHT);
 		return (0);
@@ -1664,9 +1680,9 @@ server_client_handle_key0(struct client *c, struct key_event *event,
 	}
 
 	/*
-	 * Dead panes waiting for a key, modal cancel keys, panes capturing all keys
-	 * and the command prompt are special cases. The queue might be blocked so
-	 * they need to be processed immediately rather than queued.
+	 * Dead panes waiting for a key, modal cancel keys, panes capturing all
+	 * keys and the command prompt are special cases. The queue might be
+	 * blocked so they need to be processed immediately rather than queued.
 	 */
 	if (~c->flags & CLIENT_READONLY) {
 		if (c->message_string != NULL) {
@@ -1688,18 +1704,25 @@ server_client_handle_key0(struct client *c, struct key_event *event,
 		if (wp != NULL &&
 		    (wp->flags & PANE_CAPTUREALLKEYS) &&
 		    TAILQ_EMPTY(&wp->modes) &&
-		    !KEYC_IS_MOUSE(event->key)) {
-			if (~wp->flags & PANE_EXITED) {
-				window_pane_key(wp, c, s, s->curw, event->key,
-				    &event->m);
+		    (!KEYC_IS_MOUSE(event->key) || wp->wait_item != NULL)) {
+			if (wp->flags & PANE_EXITED)
 				return (0);
+			key = event->key;
+			if (KEYC_IS_MOUSE(key)) {
+				key = server_client_check_mouse(c, event);
+				if (key == KEYC_UNKNOWN || m->wp != wp->id)
+					return (0);
+				m->valid = 1;
+				m->key = key;
 			}
+			window_pane_key(wp, c, s, s->curw, key, m);
+			return (0);
 		}
 
 		if (server_client_handle_menu_key(c, event))
 			return (0);
 		if (c->prompt != NULL) {
-			switch (status_prompt_key(c, event->key, &event->m)) {
+			switch (status_prompt_key(c, event->key, m)) {
 			case PROMPT_KEY_HANDLED:
 			case PROMPT_KEY_CLOSE:
 				return (0);
@@ -1720,8 +1743,7 @@ server_client_handle_key0(struct client *c, struct key_event *event,
 		if (wp != NULL &&
 		    window_pane_has_prompt(wp) &&
 		    window_pane_is_visible(wp)) {
-			switch (window_pane_prompt_key(wp, c, event->key,
-			    &event->m)) {
+			switch (window_pane_prompt_key(wp, c, event->key, m)) {
 			case PROMPT_KEY_HANDLED:
 			case PROMPT_KEY_CLOSE:
 			case PROMPT_KEY_MOVE:

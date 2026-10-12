@@ -1521,6 +1521,17 @@ window_pane_wait_finish(struct window_pane *wp)
 	cmdq_continue(item);
 }
 
+void
+window_pane_wait_cancel(struct window_pane *wp)
+{
+	struct cmdq_item	*item = wp->wait_item;
+
+	if (item == NULL)
+		return;
+	wp->wait_item = NULL;
+	cmdq_continue(item);
+}
+
 static void
 window_pane_free_modes(struct window_pane *wp)
 {

@@ -503,12 +503,28 @@ session_fire_window_changed(struct session *s, struct winlink *wl,
 int
 session_set_current(struct session *s, struct winlink *wl)
 {
-	struct winlink	*old = s->curw;
+	struct winlink		*old = s->curw;
+	struct window_pane	*wp;
+	struct cmdq_item	*item;
+	struct client		*c;
 
 	if (wl == NULL)
 		return (-1);
 	if (wl == s->curw)
 		return (1);
+
+	/* Stop a modal pane in the old window from blocking its client. */
+	if (old != NULL) {
+		wp = old->window->modal;
+		if (wp != NULL) {
+			item = wp->wait_item;
+			if (item != NULL) {
+				c = cmdq_get_target_client(item);
+				if (c != NULL && c->session == s)
+					window_pane_wait_cancel(wp);
+			}
+		}
+	}
 
 	winlink_stack_remove(&s->lastw, wl);
 	winlink_stack_push(&s->lastw, s->curw);
