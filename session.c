@@ -519,7 +519,7 @@ session_set_current(struct session *s, struct winlink *wl)
 		if (wp != NULL) {
 			item = wp->wait_item;
 			if (item != NULL) {
-				c = cmdq_get_target_client(item);
+				c = cmdq_get_client(item);
 				if (c != NULL && c->session == s)
 					window_pane_wait_cancel(wp);
 			}

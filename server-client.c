@@ -341,7 +341,7 @@ server_client_set_session(struct client *c, struct session *s)
 		wp = old->curw->window->modal;
 		if (wp != NULL) {
 			item = wp->wait_item;
-			if (item != NULL && cmdq_get_target_client(item) == c)
+			if (item != NULL && cmdq_get_client(item) == c)
 				window_pane_wait_cancel(wp);
 		}
 	}
